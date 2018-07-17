@@ -1,149 +1,192 @@
 
-//JSON object with the data
-window.onload = function() {
-var value = $("h1").text();
-d3.json("/data?word="+value, draw)}
-
-var draw = function(data){treeData=data
-$("div#viz").empty()
-// Create a svg canvas
-  var vis = d3.select("#viz").append("svg:svg")
-    .attr("width", 900)
-    .attr("height", 850)
-    .append("svg:g")
-    .attr("transform", "translate(400, 400)");
-
-  // Create a cluster "canvas"
-  var cluster = d3.layout.cluster()
-    .size([360,325]);
-
-  var diagonal = d3.svg.diagonal.radial()
-    .projection(function(d) { return [d.y, d.x / 180 * Math.PI]; });
-
-  var nodes = cluster.nodes(treeData);
-  var links = cluster.links(nodes);
-
-  var link = vis.selectAll("pathlink")
-    .data(links)
-    .enter().append("svg:path")
-    .attr("class", "link")
-    .attr("d", diagonal)
-
-  var node = vis.selectAll("g.node")
-    .data(nodes)
-    .enter().append("svg:g")
-    .attr("transform", function(d) { return "rotate(" + (d.x - 90) + ")translate(" + d.y + ")"; })
-
-  // Add the dot at every node
-  node.append("svg:circle")
-    .attr("r", 10)
-    .attr("stroke", "grey")
-    .attr("fill", "white")
-    // add animation
-    .on("mouseover", animatecircle);
-
-  function animatecircle() {
-    d3.select(this).transition()
-        .duration(1000)
-        .attr("r", 20)
+// draw the d3 graph visualization
+function draw(treeData) {
+  // define local functions
+  function addColor() {
+    d3.select(this)
       .transition()
-        .duration(1000)
-        .attr("r", 10);
-  };
-
-  node.append("svg:text")
-    .attr("dx", function(d) { return d.x < 180 ? 8 : -8; })
-    .attr("dy", ".31em")
-    .attr("text-anchor", function(d) { return d.x < 180 ? "start" : "end"; })
-    .attr("transform", function(d) { return d.x < 180 ? null : "rotate(180)"; })
-    .text(function(d) { return d.name; })
-    .on("mouseover", animatetext)
-    .on("click", function(d,i){
-      d3.json("/data?word="+d.name, draw)
-      $("h1").text(d.name)
-      addTopic($("span#journey_id").text(), d.name);
-    });
-
-  function animatetext() {
-    d3.select(this).transition()
-        .duration(100)
-        .style("font-size", "16px")
+        .duration(300)
+        .style("fill", "rgb(0,154,205)")
+  }
+  function removeColor() {
+    d3.select(this)
       .transition()
-        .delay(1500)
-        .duration(100)
-        .style("font-size", "12px")
-  };
-
-  var addTopic = function(journey, topic){
+        .duration(800)
+        .style("fill", "white")
+  }
+  function animateText() { 
+    if(this.id !== $("h1").text()){
+      d3.select(this)
+        .transition()
+          .duration(100)
+          .style("font-size", "16px")   
+          .style("cursor", "pointer")
+          .style("fill", "rgb(0,154,205)")
+    }
+  }
+  function removeTextSize() {
+    if(this.id !== $("h1").text()){
+      d3.select(this)
+        .transition()
+          .duration(100)
+          .style("font-size", "14px")
+          .style("fill", "black")
+    }
+  }
+  function addTopic(journey, topic){
     var url = "/add_topic?journey=" + journey + "&topic=" + topic;
 
     $.post(url, function(res) {
       history.pushState({}, null, res.name);
+      window.newTopicId=res;
+      $("span#topic_id").text(newTopicId.id);
     });
-    
-  };
-
-  KeyboardJS.on('down', function() {
-    reset();
-    $("div#define")[0].style.top = "5%";
-    $("div#pictures")[0].style.top = "95%";
-    // ajax get for description
-    $.ajax({
-      url: "/description",
-      data: {name: $("h1").text()},
-      dataType: "text",
-      success: function(result){$("div#define p").text(result)}
-    });
-  });
-
-  KeyboardJS.on('up', function() {
-    reset();
-    $("div#pictures")[0].style.top = "5%";
-    $("div#define")[0].style.top = "-85%";
-    // ajax get for pictures
-    $.ajax({
-      url: "/pictures",
-      data: {name: $("h1").text()},
-      dataType: "text",
-      success: function(result){
-        $("div#pictures img").remove();
-        $("div#pictures").append("<img src="+result+" >");
-      }
-    });
-  });
-
-  KeyboardJS.on('left', function() {
-    reset();
-    $("div#stats")[0].style.left = "5%";
-    $("div#videos")[0].style.left = "-85%";
-    // ajax get for stats from wolfram
-    $.ajax({
-      url: "/stats",
-      data: {name: $("h1").text()},
-      dataType: "JSON",
-      success: function(result){
-        $("div#stats img").remove();
-        for(i=0; i < result.length; i++) {
-          $("div#stats").append("<img src='"+result[i]["image"]["src"]+"' >");
-        }
-      }
-    })
-  });
-
-  KeyboardJS.on('right', function() {
-    reset();
-    $("div#videos")[0].style.left = "5%";
-    $("div#stats")[0].style.left = "95%";
-  });
-
-  var reset = function() {
-    $("div#define")[0].style.top = "-85%";
-    $("div#pictures")[0].style.top = "95%";
-    $("div#videos")[0].style.left = "-85%";
-    $("div#stats")[0].style.left = "95%";
   }
 
-  KeyboardJS.on('c', reset);
+  // empty the #vis "canvas" if it exists, and remove the tooltipsy div
+  $("#viz").empty();
+  $("div.tooltipsy").remove();
+  console.log(treeData.children)
+  if(treeData.children[1].children.length === 0 || (treeData.children[2].children.length === 0 && treeData.children[3].children.length === 0) ) { // stops the process if treeData is null
+    $("body").append("<p id='no-results'>Your search returned no results.  Try hitting the arrow buttons on your keyboard to find out more or click on 'New Journey' to try again...</p>")
+  } else {
+    // Create the svg canvas (at #viz)
+    var vis = d3.select("#viz").append("svg:svg")
+      .call(d3.behavior.zoom().scaleExtent([0, 8]).on("zoom", zoom))
+      .attr("width", "100%")
+      .attr("height", "89%")
+      .append("svg:g")
+      .attr("transform", "translate(615, 345) scale(.6)")
+      .append("g");
 
+    // Create a d3 cluster canvas
+    var cluster = d3.layout.cluster()
+      .size([360,425]);
 
+    
+    // **TAKE THE DATA AND CREATE "NODES" ON THE CLUSTER CANVAS**
+    var nodes = cluster.nodes(treeData);
+
+    // **TAKE THE NODES AND CREATE "LINKS" ON THE CLUSTER CANVAS**
+    var links = cluster.links(nodes);
+
+    // create a d3 diagonal projection default for drawing links
+    var diagonal = d3.svg.diagonal.radial()
+      .projection(function(d) { return [d.y, d.x / 180 * Math.PI]; });
+
+    // draw all of the existing links on the cluster canvas to be connected
+    //   by the above defined d3 diagonal projection path
+    var link = vis.selectAll("pathlink")
+      .data(links)
+      .enter().append("svg:path")
+      .attr("class", "link")
+      .attr("d", diagonal)
+
+    // draw all of the existing nodes on the cluster canvas
+    var node = vis.selectAll("g.node")
+      .data(nodes)
+      .enter().append("svg:g")
+      .attr("transform", function(d) { return "rotate(" + (d.x - 90) + ")translate(" + d.y + ")"; })
+      .attr("id", function(d){ return d.name })
+      .attr("class", function(){ return "words" })
+      .on("click", function(d,i) {
+        words = d.name.split(" "); 
+        if(words.length < 3){
+          addTopic($("span#journey_id").text(), d.name);
+          count = 0;
+          d3.json("/data?word="+d.name, draw)
+          $("h1").text(d.name)
+          var topicSpan = $("<div class='bubble-line'></div><a id='sup' data-tooltip='"+d.name+"'><div class='bubble'></div></a>").on("click", create);
+          $("div#past_topics").append(topicSpan);
+          makeTimeline();
+        }
+      });
+
+    // Add the dot at every node
+    node.append("svg:circle")
+      .attr("r", 10)
+      .attr("stroke", "grey")
+      .attr("fill", "white")
+      // add animation
+      .on("mouseover", addColor)
+      .on("mouseout", removeColor);
+
+    node.append("svg:text")
+      .attr("dx", function(d) { return d.x < 180 ? 15 : -15; })
+      .attr("dy", ".31em")
+      .attr("fill", "white")
+      .attr("id", function(d){return d.name})
+      .attr("title", function(d) {return d.name} )
+      .attr("text-anchor", function(d) { return d.x < 180 ? "start" : "end"; })
+      .attr("transform", function(d) { return d.x < 180 ? null : "rotate(180)"; })
+      .text(function(d) {
+        words = d.name.split(" "); 
+        if(words.length > 3){
+          return words[0]+" "+words[1]+" "+words[2]+"..."; 
+        } else {
+          return d.name;
+        }
+      })
+      .on("mouseover", animateText)
+      .on("mouseout", removeTextSize);
+
+    function create(){
+      count = 0;
+
+      addTopic($("span#journey_id").text(),
+               this.getAttribute("data-tooltip"))
+      d3.json("/data?word="+ (this.getAttribute("data-tooltip")), draw)
+      $("h1").text(this.getAttribute("data-tooltip"));
+      var topicSpan = $("<div class='bubble-line'></div><a id='sup' data-tooltip='"+this.getAttribute("data-tooltip")+"'><div class='bubble'></div></a>")
+        .on("click", create);
+      $("div#past_topics").append(topicSpan)
+      makeTimeline();
+    }
+    $("text").tooltipsy({alignTo: 'cursor', offset: [5, 5]});
+
+    var value = $("h1").text();
+    d3.select("#"+value).style("font-size", "26px")
+    d3.select("g#"+value).attr("transform", function(){ return "rotate(0 0 0)"});
+
+    $("#end_journey").click(function(topic){
+      $.post("/journeys/" + $("span#journey_id").text(), {
+        _method: "put"
+      });
+    });
+
+  var addTopic = function(journey, topic){
+    var url = "/add_topic?journey=" + journey + "&topic=" + topic;
+
+      $.post(url, function(res) {
+        history.pushState({}, null, res.name);
+        window.newTopicId=res;
+        $("span#topic_id").text(newTopicId.id);
+      });
+    };
+
+    function zoom() {
+      vis.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")")
+    }
+  }
+} // end if statement
+
+//JSON object with the data
+window.onload = function() {
+  var value = $("h1").text();
+  d3.json("/data?word="+value,  draw);
+}
+
+// add to the timeline
+function makeTimeline() {
+ var test = $("div#past_topics").children()
+
+  for(i = 0; i < test.length; i++) { 
+    if(test[i].id === "sup") { 
+      $(test[i]).darkTooltip({
+        animation:'flipIn',
+        gravity:'north'
+      }); 
+    };
+  };
 };
+
